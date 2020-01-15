@@ -155,19 +155,48 @@ lock_create(const char *name)
 	}
 
 	HANGMAN_LOCKABLEINIT(&lock->lk_hangman, lock->lk_name);
+	
 
 	// add stuff here as needed
+	/* Here's a pattern that is usually followed in an OS
+		- allocate the struct members incrementally 
+		- if an error occurs during the allocation or init of a struct free all the previously allocated members
+		- and then return NULL which will act as an error code
+	*/
+	lock->lk_wchan = wchan_create(lock->lk_name);
+	if(lock->lk_wchan == NULL){
+		kfree(lock->lk_name);
+		kfree(lock);
+		lock = NULL;	
 
+	}
+	spinlock_init(&lock->lk_lock);	// here you are sending the address of the date member lk_lock that lock points to the function takes a spinlock * parameter
+	lock->lk_count  = 0;
+	lock->lk_isheld = false;
 	return lock;
 }
 
 void
 lock_destroy(struct lock *lock)
 {
+
+	/*
+		mutex behavoiur can be considered to be as follows
+			- don't detroy when lock is held
+			- don't destroy when threads are blocked waitingn for it.
+			- this sort ofwhat the doc for wait-channel says as well
+		sources
+			- cmu conflluence page
+			- stack exchange
+			- wait_channel header file in include
+	*/
 	KASSERT(lock != NULL);
-
+	KASSERT(wchan_isempty(lock->lk_wchan,&lock->lk_lock));
+	KASSERT(lock->lk_isheld == false);
+	
 	// add stuff here as needed
-
+	spinlock_cleanup(&lock->lk_lock);
+	wchan_destroy(lock->lk_wchan);
 	kfree(lock->lk_name);
 	kfree(lock);
 }
@@ -175,36 +204,66 @@ lock_destroy(struct lock *lock)
 void
 lock_acquire(struct lock *lock)
 {
+	KASSERT(lock != NULL);
+	/*
+		never let a thread that is about to acquire a lock to be interrupted
+			- if it is interrupted and the thread that interrupts tries to acquire the lock 
+			- the lock will still be held by the interrupted lock but it can't be given up since the the interrupted lock doesnt give it up while interrupting
+	*/
+	KASSERT(curthread->t_in_interrupt == false);
 	/* Call this (atomically) before waiting for a lock */
-	//HANGMAN_WAIT(&curthread->t_hangman, &lock->lk_hangman);
+	HANGMAN_WAIT(&curthread->t_hangman, &lock->lk_hangman);
 
 	// Write this
 
-	(void)lock;  // suppress warning until code gets written
+	//(void)lock;  // suppress warning until code gets written
 
 	/* Call this (atomically) once the lock is acquired */
-	//HANGMAN_ACQUIRE(&curthread->t_hangman, &lock->lk_hangman);
+	spinlock_acquire(&lock->lk_lock);
+	lock->lk_count++;
+	while(lock->lk_isheld){
+		wchan_sleep(lock->lk_wchan,&lock->lk_lock);
+	}
+	lock->lk_count--;
+	KASSERT(lock->lk_isheld == false);
+	KASSERT(lock->lk_currthread == NULL);
+	lock->lk_currthread = curthread;
+	lock->lk_isheld = true;
+	spinlock_release(&lock->lk_lock);
+	HANGMAN_ACQUIRE(&curthread->t_hangman, &lock->lk_hangman);
 }
 
 void
 lock_release(struct lock *lock)
 {
 	/* Call this (atomically) when the lock is released */
-	//HANGMAN_RELEASE(&curthread->t_hangman, &lock->lk_hangman);
-
+	KASSERT(lock != NULL);
+	KASSERT(lock_do_i_hold(lock));
+	spinlock_acquire(&lock->lk_lock);
+	lock->lk_isheld = false;
+	lock->lk_currthread = NULL;
+	wchan_wakeone(lock->lk_wchan,&lock->lk_lock);
+	spinlock_release(&lock->lk_lock);
+	HANGMAN_RELEASE(&curthread->t_hangman, &lock->lk_hangman);
 	// Write this
+	
 
-	(void)lock;  // suppress warning until code gets written
+	//(void)lock;  // suppress warning until code gets written
 }
 
 bool
 lock_do_i_hold(struct lock *lock)
 {
 	// Write this
+	KASSERT(lock != NULL);
+	if (lock->lk_isheld ==  true && lock->lk_currthread == curthread)	{
+		return true;
+	}
 
-	(void)lock;  // suppress warning until code gets written
+	return false;
+	//(void)lock;  // suppress warning until code gets written
 
-	return true; // dummy until code gets written
+	//return true; // dummy until code gets written
 }
 
 ////////////////////////////////////////////////////////////
