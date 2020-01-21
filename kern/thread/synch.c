@@ -287,6 +287,14 @@ cv_create(const char *name)
 		kfree(cv);
 		return NULL;
 	}
+	
+	cv->cv_wchan = wchan_create(cv->cv_name);
+	if (cv->cv_wchan == NULL)	{
+		kfree(cv->cv_name);
+		kfree(cv);
+		return NULL;
+	}
+	spinlock_init(&cv->cv_lock);
 
 	// add stuff here as needed
 
@@ -299,7 +307,7 @@ cv_destroy(struct cv *cv)
 	KASSERT(cv != NULL);
 
 	// add stuff here as needed
-
+	wchan_destroy(cv->cv_wchan);
 	kfree(cv->cv_name);
 	kfree(cv);
 }
@@ -308,22 +316,45 @@ void
 cv_wait(struct cv *cv, struct lock *lock)
 {
 	// Write this
-	(void)cv;    // suppress warning until code gets written
-	(void)lock;  // suppress warning until code gets written
+	//(void)cv;    // suppress warning until code gets written
+	//void)lock;  // suppress warning until code gets written
+	// Expcted behaviour is to release the lock and go to sleep and after waking up again  try to reacquire lock
+	KASSERT(cv != NULL);
+	KASSERT(lock_do_i_hold(lock));
+	spinlock_acquire(&cv->cv_lock);
+	lock_release(lock);				// This operation of releasing and going to sleep musst be atomic
+	wchan_wakeone(cv->cv_wchan,&cv->cv_lock);
+	spinlock_release(&cv->cv_lock);
+	lock_acquire(lock);
 }
+
 
 void
 cv_signal(struct cv *cv, struct lock *lock)
 {
 	// Write this
-	(void)cv;    // suppress warning until code gets written
-	(void)lock;  // suppress warning until code gets written
+	//(void)cv;    // suppress warning until code gets written
+	//void)lock;  // suppress warning until code gets written
+	KASSERT(cv != NULL);
+	KASSERT(lock_do_i_hold(lock));
+	spinlock_acquire(&cv->cv_lock);
+	wchan_wakeone(cv->cv_wchan,&cv->cv_lock);
+	spinlock_release(&cv->cv_lock);
 }
 
 void
 cv_broadcast(struct cv *cv, struct lock *lock)
 {
 	// Write this
-	(void)cv;    // suppress warning until code gets written
-	(void)lock;  // suppress warning until code gets written
+	//(void)cv;    // suppress warning until code gets written
+	//void)lock;  // suppress warning until code gets written
+
+	// It seems a bit confusing and I dont Understand how 
+	// In MESA semantics the thread that signals hold the lock and waiting thread waits for lock
+	// In hoare semantics the signallling thread gives up its lock and waits until the thread that acquires it completes after which the lock is returned 
+	KASSERT(cv != NULL);
+	KASSERT(lock_do_i_hold(lock));
+	spinlock_acquire(&cv->cv_lock);
+	wchan_wakeall(cv->cv_wchan,&cv->cv_lock);
+	spinlock_release(&cv->cv_lock);
 }

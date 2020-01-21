@@ -125,7 +125,11 @@ bool lock_do_i_hold(struct lock *);
  */
 
 struct cv {
-        char *cv_name;
+        
+	char *cv_name;
+	struct wchan* cv_wchan;
+	struct spinlock cv_lock;
+	// I really need more idea bout what it means
         // add what you need here
         // (don't forget to mark things volatile as needed)
 };
