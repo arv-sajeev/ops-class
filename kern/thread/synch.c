@@ -323,7 +323,7 @@ cv_wait(struct cv *cv, struct lock *lock)
 	KASSERT(lock_do_i_hold(lock));
 	spinlock_acquire(&cv->cv_lock);
 	lock_release(lock);				// This operation of releasing and going to sleep musst be atomic
-	wchan_wakeone(cv->cv_wchan,&cv->cv_lock);
+	wchan_sleep(cv->cv_wchan,&cv->cv_lock);
 	spinlock_release(&cv->cv_lock);
 	lock_acquire(lock);
 }
