@@ -356,3 +356,38 @@ cv_broadcast(struct cv *cv, struct lock *lock)
 	wchan_wakeall(cv->cv_wchan,&cv->cv_lock);
 	spinlock_release(&cv->cv_lock);
 }
+
+
+struct rwlock*
+rwlock_create(const char *name){
+	struct rwlock *rwlock;
+	rwlock = kmalloc(sizeof(*rwlock));
+	if (rwlock == NULL){
+		return NULL;
+	}
+	rwlock->rwlock_name = kstrdup(name)
+	if (rwlock->rwlock_name == NULL){
+		kfree(rwlock);
+		return NULL;
+	}
+
+	rwlock->rwlock_rcv = cv_create("rwlock_readercv");
+	if (rwlock->rwlock_rcv == NULL){
+		kfree(rwlock->name);
+		kfree(rwlock);
+		return NULL;
+	}
+	rwlock->rwlock_wcv = cv_create("rwlock_writercv");
+	if (rwlock->rwlock_wcv == NULL){
+		kfree(rwlock->rwlock_rcv);
+		kfree(rwlock->name);
+		kfree(rwlock);
+		return NULL;
+	}
+	rwlock->rwlock_rin = false;
+	rwlock->rwlock_win = false;
+	rwlock->rwlock_rc = 0;
+	rwlock->rwlock_wrc = 0;
+	spinlock_init(&rwlock->rwlock_splock);
+	return rwlock;
+}
