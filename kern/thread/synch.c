@@ -295,9 +295,6 @@ cv_create(const char *name)
 		return NULL;
 	}
 	spinlock_init(&cv->cv_lock);
-
-	// add stuff here as needed
-
 	return cv;
 }
 
@@ -305,8 +302,6 @@ void
 cv_destroy(struct cv *cv)
 {
 	KASSERT(cv != NULL);
-
-	// add stuff here as needed
 	wchan_destroy(cv->cv_wchan);
 	kfree(cv->cv_name);
 	kfree(cv);
@@ -315,10 +310,12 @@ cv_destroy(struct cv *cv)
 void
 cv_wait(struct cv *cv, struct lock *lock)
 {
-	// Write this
-	//(void)cv;    // suppress warning until code gets written
-	//void)lock;  // suppress warning until code gets written
-	// Expcted behaviour is to release the lock and go to sleep and after waking up again  try to reacquire lock
+	// Expected behaviour is to release the lock and go to sleep and after waking up again  try to reacquire lock
+	/*
+		The calling thread checks whether it holds the lock an then releases the lock and goes to sleep
+		when it is woken up by the signal of some other thread it tries to acquire the lock
+		TRIES
+	*/
 	KASSERT(cv != NULL);
 	KASSERT(lock_do_i_hold(lock));
 	spinlock_acquire(&cv->cv_lock);
@@ -337,6 +334,7 @@ cv_signal(struct cv *cv, struct lock *lock)
 	//void)lock;  // suppress warning until code gets written
 	KASSERT(cv != NULL);
 	KASSERT(lock_do_i_hold(lock));
+	// All it does is is wake a thread on waiting on a cv
 	spinlock_acquire(&cv->cv_lock);
 	wchan_wakeone(cv->cv_wchan,&cv->cv_lock);
 	spinlock_release(&cv->cv_lock);

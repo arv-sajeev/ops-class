@@ -163,11 +163,35 @@ void cv_broadcast(struct cv *cv, struct lock *lock);
  * The name field is for easier debugging. A copy of the name is
  * (should be) made internally.
  */
+/*
+	Requirements
+	- allow multiple threads in a cridtical section if their function is to read
+	- readers can enter when no writer is holding the lock
+	- writers can enter when no one neither readers or writers hold the lock
+	- point no 2 can cause starvation
+	- multiple readers can enter when the writer is waiting for a reader to exit
+	- so change point no 2 to no writers inside or waiting
+	- we'll need
+		- a spinlock
+		- number of writers waiting
+		- try to use cv for each reader,writer
+		- use wchan_broadcast instead of wake one
+		- number of readers that are in 
+		- booleans for whether its held
+		- 
+
+*/
 
 struct rwlock {
-        char *rwlock_name;
-        // add what you need here
-        // (don't forget to mark things volatile as needed)
+        
+	char *rwlock_name;	
+	struct cv *rwlock_rcv;
+	struct cv *rwlock_wcv;
+	struct spinlock rwlock_splock;
+	volatile bool rwlock_rin;
+	volatile bool  rwlock_win;
+	volatile unsigned int rwlock_rc;
+	volatile unsigned int rwlock_wrc;
 };
 
 struct rwlock * rwlock_create(const char *);
