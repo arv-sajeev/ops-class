@@ -303,6 +303,7 @@ cv_destroy(struct cv *cv)
 {
 	KASSERT(cv != NULL);
 	wchan_destroy(cv->cv_wchan);
+	spinlock_cleanup(cv->cv_lock);
 	kfree(cv->cv_name);
 	kfree(cv);
 }
@@ -390,4 +391,18 @@ rwlock_create(const char *name){
 	rwlock->rwlock_wrc = 0;
 	spinlock_init(&rwlock->rwlock_splock);
 	return rwlock;
+}
+
+void
+rwlock_destroy(struct rwlock *rwlock){
+	KASSERT(rwlock != NULL);
+	KASSERT(rwlock->rwlock_rin == false);
+	KASSERT(rwlock->rwlock_win == false);
+	KASSERT(rwlock->rwlock_wrc == 0);
+	KASSERT(rwlock->rwlock_rc == 0);
+	cv_destroy(rwlock->rwlock_rcv);
+	cv_destroy(rwlock->rwlock_wcv);
+	kfree(rwlock->rwlock_name);
+	spinlock_cleanup(rwlock->rwlock_splock);
+	kfree(rwlock);
 }
