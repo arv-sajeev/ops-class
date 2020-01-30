@@ -380,7 +380,17 @@ rwlock_create(const char *name){
 	}
 	rwlock->rwlock_wcv = cv_create("rwlock_writercv");
 	if (rwlock->rwlock_wcv == NULL){
-		kfree(rwlock->rwlock_rcv);
+		cv_destroy(rwlock->rwlock_rcv);
+		kfree(rwlock->name);
+		kfree(rwlock);
+		return NULL;
+	}
+
+	//using sleeplock instead
+	rwlock->rwlock_sleep = lock_create("rwlock_sleeplock");
+	if (rwlock->rwlock_sleep ==  NULL){
+		cv_destroy(rwlock->rwlock_wcv);
+		cv_destroy(rwlock->rwlock_rcv);
 		kfree(rwlock->name);
 		kfree(rwlock);
 		return NULL;
@@ -388,8 +398,8 @@ rwlock_create(const char *name){
 	rwlock->rwlock_rin = false;
 	rwlock->rwlock_win = false;
 	rwlock->rwlock_rc = 0;
+	rwlock->rwlock_rrc = 0;
 	rwlock->rwlock_wrc = 0;
-	spinlock_init(&rwlock->rwlock_splock);
 	return rwlock;
 }
 
@@ -406,3 +416,75 @@ rwlock_destroy(struct rwlock *rwlock){
 	spinlock_cleanup(rwlock->rwlock_splock);
 	kfree(rwlock);
 }
+
+void 
+rwlock_acquire_read(struct rwlock* rwlock){
+	lock_acquire(rwlock->rwlock_sleep);
+	rwlock->rwlock_rrc++;
+	while(rwlock->rwlock_win == true || rwlock->rwlock_wrc > 0){	// wait while there is a writer in there or a waiting writer while a readder is in to prevent reader bias
+		cv_wait(rwlock->rwlock_rcv,rwlock->rwlock_sleep);
+	}
+	rwlock->rwlock_rcc--;
+	rwlock->rwlock_rin = true;
+	rwlock->rwlock_rc++;
+	lock_release(rwlock->rwlock_sleep);
+}
+
+/*
+	Ous bias prevention strategy is
+		- prefer waking writers when releasing a reader lock
+		- prefer waking readers when writeresare releasing their writer lock
+		- make readers go to sleep if there is a writer waiting to prevent starvation
+
+*/
+
+
+void 
+rwlock_release_read(struct rwlock* rwlock){
+	KASSERT(rwlock->rwlock_rin == true);
+	lock_acquire(rwlock->rwlock_sleep);
+	rwlock->rwlock_rc--;
+	rwlock->rwlock_rin = false;
+	if (rwlock->rwlock_rc == 0){
+		//If all the readers have exited then let the writer that was waitin enter or wake up readers that were stuck
+		rwlock->rwlock_rin = false;
+		if (rwlock->rwlock_wrc > 0){ 
+			cv_signal(rwlock->rwlock_wcv,rwlock->rwlock_sleep);
+		}
+		
+		else {
+			cv_broadcast(rwlock->rwlock_rcv,rwlock->rwlock_sleep);
+		}
+	}
+	lock_release(rwlock->rwlock_sleep);
+}
+
+void
+rwlock_acquire_write(struct rwlock* rwlock){
+	lock_acquire(rwlock->rwlock_sleep);
+	rwlock->rwlock_wrc++;
+	while(rwlock->rwlock_win == true || rwlock->rwlock_rc > 0){ //wait as long as there is another writer in or other readers are in
+		cv_wait(rwlock->rwlock_wcv,rwlock->rwlock_sleep);
+	}
+
+	rwlock->rwlock_wrc--;
+	rwlock->rwlock_win == true;
+	lock_release(rwlock->sleep);
+}
+
+void
+rwlock_release_write(struct rwlock* rwlock){
+	KASSERT(rwlock->rwlock_win == true);
+	lock_acquire(rwlock->rwlock_sleep);
+	rwlock->rwlock_win == false;
+	if (rwlock->rrc > 0){
+		cv_broadcast(rwlock->rwlock_rcv,rwlock->rwlock_sleep);
+	}
+	else {
+		cv_signal(rwlock->rwlock_wcv,rwlock->rwlock_sleep);
+	}
+	lock_release(rwlock->rwlock_sleep);
+}
+
+
+

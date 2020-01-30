@@ -187,11 +187,12 @@ struct rwlock {
 	char *rwlock_name;	
 	struct cv *rwlock_rcv;
 	struct cv *rwlock_wcv;
-	struct spinlock rwlock_splock;
+	struct lock rwlock_sleep;		// chagned to a sleep lock because i s big enough to have a long context switch duration
 	volatile bool rwlock_rin;
 	volatile bool  rwlock_win;
 	volatile unsigned int rwlock_rc;
-	volatile unsigned int rwlock_wrc;
+	volatile unsigned int rwlock_rrc;	// read request count i.e the nnumber waiting
+	volatile unsigned int rwlock_wrc;	// write request count
 };
 
 struct rwlock * rwlock_create(const char *);
