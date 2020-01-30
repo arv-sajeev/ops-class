@@ -303,7 +303,7 @@ cv_destroy(struct cv *cv)
 {
 	KASSERT(cv != NULL);
 	wchan_destroy(cv->cv_wchan);
-	spinlock_cleanup(cv->cv_lock);
+	spinlock_cleanup(&cv->cv_lock);
 	kfree(cv->cv_name);
 	kfree(cv);
 }
@@ -366,7 +366,7 @@ rwlock_create(const char *name){
 	if (rwlock == NULL){
 		return NULL;
 	}
-	rwlock->rwlock_name = kstrdup(name)
+	rwlock->rwlock_name = kstrdup(name);
 	if (rwlock->rwlock_name == NULL){
 		kfree(rwlock);
 		return NULL;
@@ -374,14 +374,14 @@ rwlock_create(const char *name){
 
 	rwlock->rwlock_rcv = cv_create("rwlock_readercv");
 	if (rwlock->rwlock_rcv == NULL){
-		kfree(rwlock->name);
+		kfree(rwlock->rwlock_name);
 		kfree(rwlock);
 		return NULL;
 	}
 	rwlock->rwlock_wcv = cv_create("rwlock_writercv");
 	if (rwlock->rwlock_wcv == NULL){
 		cv_destroy(rwlock->rwlock_rcv);
-		kfree(rwlock->name);
+		kfree(rwlock->rwlock_name);
 		kfree(rwlock);
 		return NULL;
 	}
@@ -391,7 +391,7 @@ rwlock_create(const char *name){
 	if (rwlock->rwlock_sleep ==  NULL){
 		cv_destroy(rwlock->rwlock_wcv);
 		cv_destroy(rwlock->rwlock_rcv);
-		kfree(rwlock->name);
+		kfree(rwlock->rwlock_name);
 		kfree(rwlock);
 		return NULL;
 	}
@@ -413,7 +413,7 @@ rwlock_destroy(struct rwlock *rwlock){
 	cv_destroy(rwlock->rwlock_rcv);
 	cv_destroy(rwlock->rwlock_wcv);
 	kfree(rwlock->rwlock_name);
-	spinlock_cleanup(rwlock->rwlock_splock);
+	lock_destroy(rwlock->rwlock_sleep);
 	kfree(rwlock);
 }
 
@@ -424,7 +424,7 @@ rwlock_acquire_read(struct rwlock* rwlock){
 	while(rwlock->rwlock_win == true || rwlock->rwlock_wrc > 0){	// wait while there is a writer in there or a waiting writer while a readder is in to prevent reader bias
 		cv_wait(rwlock->rwlock_rcv,rwlock->rwlock_sleep);
 	}
-	rwlock->rwlock_rcc--;
+	rwlock->rwlock_rrc--;
 	rwlock->rwlock_rin = true;
 	rwlock->rwlock_rc++;
 	lock_release(rwlock->rwlock_sleep);
@@ -447,7 +447,6 @@ rwlock_release_read(struct rwlock* rwlock){
 	rwlock->rwlock_rin = false;
 	if (rwlock->rwlock_rc == 0){
 		//If all the readers have exited then let the writer that was waitin enter or wake up readers that were stuck
-		rwlock->rwlock_rin = false;
 		if (rwlock->rwlock_wrc > 0){ 
 			cv_signal(rwlock->rwlock_wcv,rwlock->rwlock_sleep);
 		}
@@ -469,15 +468,15 @@ rwlock_acquire_write(struct rwlock* rwlock){
 
 	rwlock->rwlock_wrc--;
 	rwlock->rwlock_win == true;
-	lock_release(rwlock->sleep);
+	lock_release(rwlock->rwlock_sleep);
 }
 
 void
 rwlock_release_write(struct rwlock* rwlock){
 	KASSERT(rwlock->rwlock_win == true);
 	lock_acquire(rwlock->rwlock_sleep);
-	rwlock->rwlock_win == false;
-	if (rwlock->rrc > 0){
+	rwlock->rwlock_win = false;
+	if (rwlock->rwlock_rrc > 0){
 		cv_broadcast(rwlock->rwlock_rcv,rwlock->rwlock_sleep);
 	}
 	else {
