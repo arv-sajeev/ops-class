@@ -187,7 +187,7 @@ struct rwlock {
 	char *rwlock_name;	
 	struct cv *rwlock_rcv;
 	struct cv *rwlock_wcv;
-	struct lock rwlock_sleep;		// chagned to a sleep lock because i s big enough to have a long context switch duration
+	struct lock *rwlock_sleep;		// chagned to a sleep lock because i s big enough to have a long context switch duration
 	volatile bool rwlock_rin;
 	volatile bool  rwlock_win;
 	volatile unsigned int rwlock_rc;
