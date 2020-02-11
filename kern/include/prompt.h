@@ -42,6 +42,6 @@
  * testing.
  */
 
-#define KERNEL_PROMPT "OS/161 kernel [? for menu]: "
+#define KERNEL_PROMPT "raving_sage@pand0ra5-b0x [? for menu]: "
 
 #endif /* _PROMPT_H_ */

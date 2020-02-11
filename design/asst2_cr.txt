@@ -1,0 +1,17 @@
+1. What are the ELF magic numbers?
+
+	The ELF magic numbers are 
+		0x7f
+		Hex for 'E'
+		Hex for 'L'
+		Hex for 'F'
+
+2. What is the difference between UIO_USERISPACE and UIO_USERSPACE? When should one use UIO_SYSSPACE instead?
+
+	UIO_USERISPACE is used for user process code
+	UIO_USERSPACE is used for user process data
+	UIO_USERSYSSPACE is used for kernel process and data
+
+3. Why can the struct uio that is used to read in a segment be allocated on the stack in load_segment? Or, put another way, where does the memory read actually go?
+
+	
